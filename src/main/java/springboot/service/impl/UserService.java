@@ -7,11 +7,14 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import springboot.config.SecurityConfig;
 import springboot.dto.request.LoginDto;
 import springboot.dto.request.RegisterDto;
 import springboot.dto.response.UserResponse;
 import springboot.entity.Role;
 import springboot.entity.User;
+import springboot.exception.LoginException;
+import springboot.exception.RegisterException;
 import springboot.repository.RoleRepository;
 import springboot.repository.UserRepository;
 import springboot.security.jwt.JwtProvider;
@@ -37,7 +40,13 @@ public class UserService implements IUserService{
     }
 
     @Override
-    public String register(RegisterDto registerDto) {
+    public String register(RegisterDto registerDto) throws RegisterException {
+        if (userRepository.existsByUsername(registerDto.getUsername())) {
+            throw new RegisterException("User is exits");
+        }
+        if (userRepository.existsByEmail(registerDto.getEmail())) {
+            throw new RegisterException("Email is exits");
+        }
         Set<Role> roles = new HashSet<>();
         roles.add(roleRepository.findByRoleName("USER"));
         User user = User.builder()
@@ -51,7 +60,7 @@ public class UserService implements IUserService{
     }
 
     @Override
-    public UserResponse login(LoginDto loginDto) {
+    public UserResponse login(LoginDto loginDto) throws LoginException {
         Authentication authentication;
         try {
             authentication = authenticationProvider.authenticate(new UsernamePasswordAuthenticationToken(loginDto.getUsername(), loginDto.getPassword()));
@@ -60,6 +69,9 @@ public class UserService implements IUserService{
         }
 
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        if (userPrincipal.getUser().isStatus() == false){
+            throw new LoginException("Account is locked");
+        }
         String token = jwtProvider.generateToken(userPrincipal);
         UserResponse userResponse = UserResponse.builder()
                 .id(userPrincipal.getUser().getId())
@@ -71,4 +83,7 @@ public class UserService implements IUserService{
 
         return userResponse;
     }
+
+
+
 }
